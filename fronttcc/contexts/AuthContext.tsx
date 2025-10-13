@@ -1,3 +1,4 @@
+// contexts/AuthContext.tsx
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../config/api';
@@ -8,6 +9,7 @@ interface User {
   name: string;
   email: string;
   role: 'PRODUTOR' | 'TAREFEIRO';
+  tel?: string;
 }
 
 interface AuthContextData {
@@ -16,6 +18,8 @@ interface AuthContextData {
   loading: boolean;
   signIn(credentials: object): Promise<void>;
   signOut(): void;
+  updateUser(user: Partial<User>): void;
+  reloadUser(): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -68,8 +72,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   }
 
+  async function updateUser(updatedUser: Partial<User>) {
+    setUser(currentUser => {
+        if (!currentUser) return null;
+        const newUser = { ...currentUser, ...updatedUser };
+        AsyncStorage.setItem('@RNAuth:user', JSON.stringify(newUser));
+        return newUser;
+    });
+  }
+
+  async function reloadUser() {
+    try {
+      const profileResponse = await api.get('/user/profile/me');
+      const freshUser: User = profileResponse.data;
+      setUser(freshUser);
+      await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(freshUser));
+    } catch (error) {
+      console.error("Falha ao recarregar os dados do usuário:", error);
+      // Opcional: Deslogar se o token for inválido
+      // signOut();
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ signed: !!user, user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ signed: !!user, user, loading, signIn, signOut, updateUser, reloadUser }}>
       {children}
     </AuthContext.Provider>
   );

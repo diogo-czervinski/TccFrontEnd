@@ -11,7 +11,7 @@ export default function TabLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="home" />
       <Stack.Screen name="createQuestion" />
-      <Stack.Screen name="createAds" />
+      <Stack.Screen name="EditProfile" />
     </Stack>
   );
 }

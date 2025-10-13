@@ -1,3 +1,4 @@
+// app/(tabs)/home.tsx
 import React, { useContext, useState } from "react";
 import {
   View,
@@ -132,9 +133,11 @@ export default function HomeScreen() {
             <Text style={styles.headerTitle}>Olá, {user?.name}!</Text>
             <Text style={styles.headerSubtitle}>Bem-vindo à comunidade.</Text>
           </View>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarLetter}>{getInitial(user?.name)}</Text>
-          </View>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/EditProfile')}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarLetter}>{getInitial(user?.name)}</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.weatherCard}>
@@ -212,7 +215,7 @@ export default function HomeScreen() {
 // --- Componente do Carrossel (CORRIGIDO) ---
 function QuestionCarousel({ images }: { images: string[] }) {
   const [index, setIndex] = useState(0);
-  
+
   const cardWidth = width - 40;
   const imageWidth = cardWidth - 20;
   const snapInterval = imageWidth + 10;
@@ -289,7 +292,7 @@ const styles = StyleSheet.create({
     borderRadius: 30, elevation: 8, shadowColor: "#000", shadowOpacity: 0.3,
     shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
   },
-  
+
   // --- Estilos do Card e Carrossel Corrigidos ---
   questionCard: {
     backgroundColor: "#FFFFFF", borderRadius: 16, paddingVertical: 20,
