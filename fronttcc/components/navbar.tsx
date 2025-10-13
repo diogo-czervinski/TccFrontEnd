@@ -8,10 +8,9 @@ export default function BottomNavBar() {
     const { user } = useContext(AuthContext);
     const router = useRouter();
 
-    const handleNavigate = (path: string) => {
-        router.push('/(tabs)/home');
+    const handleNavigate = (path: Parameters<typeof router.push>[0]) => {
+        router.push(path);
     };
-
     return (
         <View style={styles.container}>
             {/* Home */}
@@ -34,12 +33,6 @@ export default function BottomNavBar() {
                     <Text style={styles.tabText}>Meus Anúncios</Text>
                 </TouchableOpacity>
             )}
-
-            {/* Perfil */}
-            <TouchableOpacity style={styles.tab} onPress={() => handleNavigate('/(tabs)/profile')}>
-                <Ionicons name="person-outline" size={24} color="#059669" />
-                <Text style={styles.tabText}>Perfil</Text>
-            </TouchableOpacity>
         </View>
     );
 }

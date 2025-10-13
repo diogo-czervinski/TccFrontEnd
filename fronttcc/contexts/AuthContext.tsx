@@ -45,12 +45,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
 
-      const profileResponse = await api.get('/user/profile/me');
-      const user: User = profileResponse.data;
+      await AsyncStorage.setItem('@RNAuth:token', access_token);
 
+      const profileResponse = await api.get('/user/profile/me',);
+      const user: User = profileResponse.data;
       setUser(user);
       await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(user));
-      await AsyncStorage.setItem('@RNAuth:token', access_token);
+
     } catch (error) {
       if (error instanceof AxiosError && error.response) {
         const backendMessage =

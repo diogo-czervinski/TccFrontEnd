@@ -5,30 +5,33 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   StatusBar,
   ActivityIndicator,
-  Pressable,
   Image,
+  Dimensions,
 } from 'react-native';
+import Carousel from 'react-native-reanimated-carousel';
 import AuthContext from '@/contexts/AuthContext';
 import api from '@/config/api';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
 import BottomNavBar from '@/components/navbar';
+import { useRouter } from 'expo-router';
 import { AxiosError } from 'axios';
 
 interface AdImage {
   id: number;
-  url: string; 
+  url: string;
 }
 
 interface Anuncio {
   id: number;
   title: string;
   description: string;
-  images: AdImage[]; 
+  images: AdImage[];
 }
+
+const { width } = Dimensions.get('window');
 
 export default function MyAds() {
   const { user } = useContext(AuthContext);
@@ -58,9 +61,7 @@ export default function MyAds() {
     }, [])
   );
 
-  // ✅ CORREÇÃO APLICADA AQUI
   const getImageUrl = (filename: string) => {
-    // Monta a URL completa adicionando o caminho do servidor onde as imagens estão
     return `${api.defaults.baseURL}/uploads/ads/${filename}`;
   };
 
@@ -83,12 +84,29 @@ export default function MyAds() {
           </Text>
         ) : (
           anuncios.map((a) => (
-            <TouchableOpacity key={a.id} style={styles.anuncioCard}>
+            <View key={a.id} style={styles.anuncioCard}>
               {a.images && a.images.length > 0 ? (
-                <Image
-                  source={{ uri: getImageUrl(a.images[0].url) }}
-                  style={styles.anuncioImage}
+                <Carousel
+                  loop
+                  width={width - 60}
+                  height={180}
+                  autoPlay={false}
+                  data={a.images}
+                  scrollAnimationDuration={500}
+                  mode="parallax"
+                  modeConfig={{
+                    parallaxScrollingScale: 0.9,
+                    parallaxScrollingOffset: 50,
+                  }}
+                  renderItem={({ item }) => (
+                    <Image
+                      source={{ uri: getImageUrl(item.url) }}
+                      style={styles.anuncioImage}
+                      resizeMode="cover"
+                    />
+                  )}
                 />
+
               ) : (
                 <View style={[styles.anuncioImage, styles.placeholderImage]} />
               )}
@@ -99,7 +117,7 @@ export default function MyAds() {
                   {a.description}
                 </Text>
               </View>
-            </TouchableOpacity>
+            </View>
           ))
         )}
       </ScrollView>
@@ -123,30 +141,38 @@ const styles = StyleSheet.create({
   anuncioCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    marginHorizontal: 20,
-    marginBottom: 16,
+    marginHorizontal: 15,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    flexDirection: 'row',
+    padding: 10,
+    minHeight: 300,
     alignItems: 'center',
-    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
+
   anuncioImage: {
-    width: 80,
-    height: 80,
+    width: width -100,
+    height: 400,
     borderRadius: 12,
-    marginRight: 12,
     backgroundColor: '#F3F4F6',
+    marginBottom: 8,
   },
   placeholderImage: {
     backgroundColor: '#E5E7EB',
   },
   anuncioTextContainer: {
-    flex: 1,
+    width: '100%',
+    paddingHorizontal: 12,  
+    marginTop: 8,         
   },
   anuncioTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#1F2937',
   },
   anuncioDescription: {
@@ -166,6 +192,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#059669',
     borderRadius: 30,
     elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   fabText: { fontSize: 30, color: 'white' },
 });

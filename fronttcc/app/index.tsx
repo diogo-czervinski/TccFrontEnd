@@ -31,8 +31,8 @@ const handleLogin = async () => {
   }
 
   try {
-    await signIn({ email, password }); // sem setTimeout
-    router.replace('/(tabs)/home');     // navega direto
+    await signIn({ email, password }); 
+    router.replace('/(tabs)/home');     
   } catch (error) {
     const errorMessage =
       error instanceof Error

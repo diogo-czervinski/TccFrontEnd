@@ -11,15 +11,18 @@ import {
   Platform,
   ScrollView,
   Image,
+  ActivityIndicator, 
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/config/api';
-import { useRouter } from 'expo-router'; // <- import do router
+import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons'; 
 
 export default function CreateQuestionScreen() {
   const [text, setText] = useState('');
   const [images, setImages] = useState<any[]>([]);
-  const router = useRouter(); // <- useRouter do expo-router
+  const [isLoading, setIsLoading] = useState(false); 
+  const router = useRouter();
 
   const handleSelectImages = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -35,8 +38,13 @@ export default function CreateQuestionScreen() {
     });
 
     if (!result.canceled) {
-      setImages(result.assets);
+      setImages(prevImages => [...prevImages, ...result.assets]); 
     }
+  };
+
+
+  const handleRemoveImage = (indexToRemove: number) => {
+    setImages(prevImages => prevImages.filter((_, index) => index !== indexToRemove));
   };
 
   const handlePublish = async () => {
@@ -44,6 +52,9 @@ export default function CreateQuestionScreen() {
       Alert.alert('Pergunta muito curta', 'Por favor, detalhe um pouco mais a sua dúvida.');
       return;
     }
+    if (isLoading) return; 
+
+    setIsLoading(true);
 
     try {
       const formData = new FormData();
@@ -64,32 +75,31 @@ export default function CreateQuestionScreen() {
       Alert.alert('Sucesso!', 'A sua pergunta foi publicada na comunidade.');
       setText('');
       setImages([]);
-      router.back(); // <- substitui navigation.goBack()
+      router.back();
     } catch (error) {
       console.log(error);
       Alert.alert('Erro', 'Não foi possível publicar a sua pergunta.');
+    } finally {
+      setIsLoading(false); 
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -100} // Ajuste fino se necessário
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Nova Pergunta</Text>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.closeButton}>Fechar</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+            <Feather name="x" size={24} color="#6B7280" />
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <TextInput
             style={styles.input}
             placeholder="Qual é a sua dúvida sobre o cultivo, mercado ou técnicas da erva-mate?"
@@ -100,26 +110,40 @@ export default function CreateQuestionScreen() {
             autoFocus
           />
 
-          <TouchableOpacity style={styles.selectButton} onPress={handleSelectImages}>
-            <Text style={styles.selectButtonText}>Selecionar Imagens</Text>
-          </TouchableOpacity>
 
           {images.length > 0 && (
-            <ScrollView horizontal style={{ marginTop: 10 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewScrollView}>
               {images.map((img, index) => (
-                <Image
-                  key={index}
-                  source={{ uri: img.uri }}
-                  style={{ width: 100, height: 100, marginRight: 10, borderRadius: 8 }}
-                />
+                <View key={index} style={styles.imagePreviewContainer}>
+                  <Image source={{ uri: img.uri }} style={styles.imagePreview} />
+                  <TouchableOpacity onPress={() => handleRemoveImage(index)} style={styles.removeImageButton}>
+                    <Feather name="x" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
               ))}
             </ScrollView>
           )}
+
+  
+          <TouchableOpacity style={styles.imagePickerButton} onPress={handleSelectImages}>
+            <Feather name="image" size={24} color="#059669" />
+            <Text style={styles.imagePickerButtonText}>Adicionar Imagens</Text>
+          </TouchableOpacity>
+
         </ScrollView>
 
+
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.button} onPress={handlePublish}>
-            <Text style={styles.buttonText}>Publicar</Text>
+          <TouchableOpacity
+            style={[styles.publishButton, isLoading && styles.publishButtonDisabled]}
+            onPress={handlePublish}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.publishButtonText}>Publicar</Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -127,26 +151,115 @@ export default function CreateQuestionScreen() {
   );
 }
 
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
   keyboardContainer: { flex: 1 },
   header: {
     flexDirection: 'row',
+    justifyContent: 'center', 
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  closeButton: {
+    position: 'absolute', 
+    right: 16,
+    padding: 4,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40, 
+  },
+  input: {
+    fontSize: 18,
+    textAlignVertical: 'top',
+    color: '#111827',
+    minHeight: 150, 
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 16,
+    marginBottom: 20,
+  },
+  imagePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    borderStyle: 'dashed',
+    backgroundColor: '#F9FAFB',
+  },
+  imagePickerButtonText: {
+    fontSize: 16,
+    color: '#059669',
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  imagePreviewScrollView: {
+    marginBottom: 20,
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    marginRight: 10,
+  },
+  imagePreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  footer: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
     backgroundColor: '#FFFFFF',
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
-  closeButton: { position: 'absolute', right: -120, fontSize: 16, color: '#059669' },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 20 },
-  input: { fontSize: 18, textAlignVertical: 'top', color: '#111827' },
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
-  button: { height: 56, backgroundColor: '#059669', justifyContent: 'center', alignItems: 'center', borderRadius: 12 },
-  buttonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
-  selectButton: { marginTop: 10, padding: 12, backgroundColor: '#E5E7EB', borderRadius: 8, alignItems: 'center' },
-  selectButtonText: { fontSize: 16, color: '#111827' },
+  publishButton: {
+    height: 56,
+    backgroundColor: '#059669',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+
+    elevation: 8,
+  },
+  publishButtonDisabled: {
+    backgroundColor: '#047857',
+    opacity: 0.8,
+  },
+  publishButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
 });
