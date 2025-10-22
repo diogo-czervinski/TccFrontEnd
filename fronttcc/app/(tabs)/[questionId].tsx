@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, Image,
   TouchableOpacity, StatusBar, ActivityIndicator,
@@ -7,25 +7,31 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import api from '@/config/api';
+import AuthContext from '@/contexts/AuthContext';
+import { AxiosError } from 'axios';
 
-interface Comment { id: number; text: string; user: { name: string }; }
+interface Comment { id: number; text: string; user: { name: string, id: number }; }
 interface QuestionImage { id: number; url: string; }
 interface Question {
   id: number;
   text: string;
-  user: { name: string };
+  user: { name: string, id: number };
   comments: Comment[];
   images?: QuestionImage[];
 }
 
 export default function QuestionDetailScreen() {
-  const { questionId } = useLocalSearchParams();   
+  const { questionId } = useLocalSearchParams();
   const router = useRouter();
 
   const [question, setQuestion] = useState<Question | null>(null);
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState('');
   const [zoomImage, setZoomImage] = useState<string | null>(null);
+
+  const [userId, setUserId] = useState<number | null>(null);
+  const { user } = useContext(AuthContext);
+
 
   const getQuestionImageURL = (filename: string) =>
     `${api.defaults.baseURL}/uploads/questions/${filename}`;
@@ -37,7 +43,7 @@ export default function QuestionDetailScreen() {
     } catch (error) {
       console.error(error);
       Alert.alert('Erro', 'Não foi possível carregar os detalhes da pergunta.');
-      router.replace('/(tabs)/home'); // Limpa o parâmetro
+      router.replace('/(tabs)/home');
     } finally {
       setLoading(false);
     }
@@ -57,6 +63,53 @@ export default function QuestionDetailScreen() {
       Alert.alert('Erro', 'Não foi possível enviar o comentário.');
     }
   };
+  const handleDeleteComment = async (idComment: number) => {
+    console.log("Entrou");
+
+    if (typeof window !== "undefined") {
+      const confirmDelete = window.confirm("Tem certeza que deseja excluir este comentário?");
+      if (!confirmDelete) return;
+
+      try {
+        const res = await api.delete(`/comment/${idComment}`);
+        fetchDetails();
+      } catch (error) {
+        const err = error as AxiosError<any>;
+        alert(err.response?.data?.message || "Não foi possível excluir o comentário.");
+      }
+      return;
+    }
+
+    // No celular (Android/iOS)
+    Alert.alert(
+      "Excluir comentário",
+      "Tem certeza que deseja excluir este comentário?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await api.delete(`/comment/${idComment}`);
+              fetchDetails();
+            } catch (error) {
+              const err = error as AxiosError<any>;
+              console.log("Erro completo:", err.response?.data || err.message);
+              Alert.alert("Erro", err.response?.data?.message || "Não foi possível excluir o comentário.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+
+  const canDeleteComment = (commentUserId: number) => {
+    if (!user || !question) return false;
+    return commentUserId === user.id || question.user.id === user.id;
+  };
+
 
   if (loading) {
     return (
@@ -117,13 +170,27 @@ export default function QuestionDetailScreen() {
             <View key={comment.id} style={styles.commentContainer}>
               <View style={styles.commentHeader}>
                 <View style={styles.avatar}>
-                  <Text style={styles.avatarLetter}>{comment.user?.name?.charAt(0).toUpperCase() || 'U'}</Text>
+                  <Text style={styles.avatarLetter}>
+                    {comment.user?.name?.charAt(0).toUpperCase() || 'U'}
+                  </Text>
                 </View>
                 <Text style={styles.commentAuthor}>{comment.user?.name || 'Usuário'}</Text>
+
+                {canDeleteComment(comment.user.id) && (
+                  <TouchableOpacity
+
+                    onPress={() => handleDeleteComment(comment.id)}
+                    style={styles.deleteButton}
+                  >
+                    <Text style={styles.deleteButtonText}>Excluir</Text>
+                  </TouchableOpacity>
+                )}
               </View>
+
               <Text style={styles.commentText}>{comment.text}</Text>
             </View>
           ))}
+
         </ScrollView>
 
         {/* Input Comentário */}
@@ -171,4 +238,18 @@ const styles = StyleSheet.create({
   input: { flex: 1, height: 48, backgroundColor: '#F3F4F6', borderRadius: 24, paddingHorizontal: 20, marginRight: 12, fontSize: 16 },
   sendButton: { paddingHorizontal: 16 },
   sendButtonText: { color: '#059669', fontSize: 16, fontWeight: 'bold' },
+
+  deleteButton: {
+    marginLeft: 'auto',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#FEE2E2',
+  },
+  deleteButtonText: {
+    color: '#B91C1C',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+
 });
