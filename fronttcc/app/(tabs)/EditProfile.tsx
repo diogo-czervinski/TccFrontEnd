@@ -1,201 +1,393 @@
-// app/(tabs)/edit-profile.tsx
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  ActivityIndicator,
+  View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, StatusBar,
+  ActivityIndicator, Image, Dimensions, TouchableOpacity, Modal, TextInput, Alert,
+  Platform
 } from 'react-native';
+import Carousel from 'react-native-reanimated-carousel';
 import AuthContext from '@/contexts/AuthContext';
 import api from '@/config/api';
+import { useFocusEffect } from '@react-navigation/native';
+import BottomNavBar from '@/components/navbar';
+import { FontAwesome, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { AxiosError } from 'axios';
 
-export default function EditProfileScreen() {
-  const { user, signOut, reloadUser } = useContext(AuthContext);
+const { width } = Dimensions.get('window');
+
+interface AdImage { id: number; url: string; }
+interface Anuncio { id: number; title: string; description: string; images: AdImage[]; }
+interface Question { id: number; text: string; images?: { url: string }[]; }
+
+export default function UserPanel() {
+  const { user, reloadUser } = useContext(AuthContext);
+  const router = useRouter();
+
+  const [activeTab, setActiveTab] = useState<'questions' | 'ads'>('ads');
+  const [anuncios, setAnuncios] = useState<Anuncio[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loadingAds, setLoadingAds] = useState(true);
+  const [loadingQuestions, setLoadingQuestions] = useState(true);
+
+  const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [tel, setTel] = useState(user?.tel || '');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      setName(user.name);
-      setEmail(user.email);
-      setTel(user.tel || '');
-    }
-  }, [user]);
-
-  const handleUpdate = async () => {
-    if (password && password !== confirmPassword) {
-      Alert.alert('Erro', 'As senhas não coincidem.');
-      return;
-    }
-    if (isLoading) return;
-
-    setIsLoading(true);
+  // --- Fetch anúncios e perguntas ---
+  const fetchAds = async () => {
+    setLoadingAds(true);
     try {
-      const userData: { name: string; email: string; tel: string; password?: string } = {
-        name,
-        email,
-        tel,
-      };
-      if (password) {
-        userData.password = password;
-      }
-
-      await api.patch('/user', userData);
-
-      await reloadUser();
-
-
-      Alert.alert('Sucesso!', 'Seu perfil foi atualizado.');
-      router.back();
-    } catch (error) {
-      let errorMessage = 'Não foi possível atualizar o perfil.';
-      if (error instanceof AxiosError && error.response) {
-        errorMessage = error.response.data.message || errorMessage;
-      }
-      Alert.alert('Erro', errorMessage);
+      const res = await api.get('/ads/me');
+      setAnuncios(res.data);
+    } catch (e) {
+      console.log(e);
     } finally {
-      setIsLoading(false);
+      setLoadingAds(false);
     }
   };
 
+  const fetchQuestions = async () => {
+    setLoadingQuestions(true);
+    try {
+      const res = await api.get('/questions/me');
+      setQuestions(res.data);
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setLoadingQuestions(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (activeTab === 'ads') fetchAds();
+      if (activeTab === 'questions') fetchQuestions();
+    }, [activeTab])
+  );
+
+  const handleUpdateProfile = async () => {
+    setIsSaving(true);
+    try {
+      await api.patch('/user', { name, email, tel });
+      await reloadUser();
+      setModalVisible(false);
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  const handleDeleteQuestion = (idQuestion: number) => {
+    const confirmMsg = "Tem certeza que deseja excluir esta pergunta?";
+    if (Platform.OS === 'web') {
+      if (!window.confirm(confirmMsg)) return;
+      api.delete(`/questions/${idQuestion}`)
+        .then(() => {
+          window.alert("Pergunta excluída com sucesso!");
+          setQuestions(prev => prev.filter(q => q.id !== idQuestion));
+        })
+        .catch((err) => {
+          window.alert(err.response?.data?.message || "Erro ao excluir pergunta.");
+        });
+      return;
+    }
+
+    Alert.alert("Excluir pergunta", confirmMsg, [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Excluir", style: "destructive",
+        onPress: () => {
+          api.delete(`/questions/${idQuestion}`)
+            .then(() => {
+              Alert.alert("Pergunta excluída com sucesso!");
+              setQuestions(prev => prev.filter(q => q.id !== idQuestion));
+            })
+            .catch((err) => {
+              Alert.alert("Erro", err.response?.data?.message || "Erro ao excluir pergunta.");
+            });
+        }
+      }
+    ]);
+  };
+
+  const handleDeleteAd = (idAd: number) => {
+    const confirmMsg = "Tem certeza que deseja excluir este anúncio?";
+    if (Platform.OS === 'web') {
+      if (!window.confirm(confirmMsg)) return;
+      api.delete(`/ads/${idAd}`)
+        .then(() => {
+          window.alert("Anúncio excluído com sucesso!");
+          setAnuncios(prev => prev.filter(a => a.id !== idAd));
+        })
+        .catch((err) => {
+          window.alert(err.response?.data?.message || "Erro ao excluir anúncio.");
+        });
+      return;
+    }
+
+    Alert.alert("Excluir anúncio", confirmMsg, [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Excluir", style: "destructive",
+        onPress: () => {
+          api.delete(`/ads/${idAd}`)
+            .then(() => {
+              Alert.alert("Anúncio excluído com sucesso!");
+              setAnuncios(prev => prev.filter(a => a.id !== idAd));
+            })
+            .catch((err) => {
+              Alert.alert("Erro", err.response?.data?.message || "Erro ao excluir anúncio.");
+            });
+        }
+      }
+    ]);
+  };
+
+  const getAdImageUrl = (filename: string) => `${api.defaults.baseURL}/uploads/ads/${filename}`;
+  const getQuestionImageUrl = (filename: string) => `${api.defaults.baseURL}/uploads/questions/${filename}`;
+  const getInitial = (name: string) => name.charAt(0).toUpperCase();
+
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <StatusBar barStyle="dark-content" />
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+
+        {/* Header / Perfil */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Editar Perfil</Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-            <Feather name="x" size={24} color="#6B7280" />
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{getInitial(user?.name || '')}</Text>
+          </View>
+          <Text style={styles.userName}>{user?.name}</Text>
+          <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.editButton}>
+            <Feather name="settings" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <TextInput
-            style={styles.input}
-            placeholder="Nome Completo"
-            value={name}
-            onChangeText={setName}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="E-mail"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Telefone"
-            value={tel}
-            onChangeText={setTel}
-            keyboardType="phone-pad"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Nova Senha (deixe em branco para não alterar)"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Confirmar Nova Senha"
-            secureTextEntry
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-          />
-        </ScrollView>
-
-        <View style={styles.footer}>
+        {/* Tabs */}
+        <View style={styles.tabs}>
           <TouchableOpacity
-            style={styles.saveButton}
-            onPress={handleUpdate}
-            disabled={isLoading}
+            onPress={() => setActiveTab('ads')}
+            style={[styles.tab, activeTab === 'ads' && styles.activeTab]}
           >
-            {isLoading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Salvar Alterações</Text>}
+            <Text style={activeTab === 'ads' ? styles.activeTabText : styles.tabText}>
+              Meus Anúncios
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={signOut}
+            onPress={() => setActiveTab('questions')}
+            style={[styles.tab, activeTab === 'questions' && styles.activeTab]}
           >
-            <Text style={styles.logoutButtonText}>Sair</Text>
+            <Text style={activeTab === 'questions' ? styles.activeTabText : styles.tabText}>
+              Minhas Perguntas
+            </Text>
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+
+        {/* Botão de Novo Anúncio */}
+        {activeTab === 'ads' && (
+          <TouchableOpacity
+            style={styles.newAdButton}
+            onPress={() => router.push('/(tabs)/createAds')}
+          >
+            <Feather name="plus-circle" size={22} color="#fff" />
+            <Text style={styles.newAdButtonText}>Novo Anúncio</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Conteúdo */}
+        {activeTab === 'ads' ? (
+          loadingAds ? (
+            <ActivityIndicator size="large" color="#059669" style={{ marginTop: 20 }} />
+          ) : anuncios.length === 0 ? (
+            <Text style={styles.noContentText}>Nenhum anúncio publicado</Text>
+          ) : (
+            anuncios.map(a => (
+              <View key={a.id} style={styles.card}>
+                <TouchableOpacity
+                  onPress={() => handleDeleteAd(a.id)}
+                  style={styles.deleteIcon}
+                >
+                  <FontAwesome name="trash" size={18} color="#EF4444" />
+                </TouchableOpacity>
+
+                {a.images.length > 0 ? (
+                  <Carousel
+                    loop
+                    width={width - 60}
+                    height={180}
+                    autoPlay={false}
+                    data={a.images}
+                    scrollAnimationDuration={500}
+                    mode="parallax"
+                    modeConfig={{
+                      parallaxScrollingScale: 0.9,
+                      parallaxScrollingOffset: 50
+                    }}
+                    renderItem={({ item }) => (
+                      <Image
+                        source={{ uri: getAdImageUrl(item.url) }}
+                        style={styles.cardImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                  />
+                ) : (
+                  <View style={[styles.cardImage, styles.placeholderImage]} />
+                )}
+
+                <View style={styles.cardTextContainer}>
+                  <Text style={styles.cardTitle}>{a.title}</Text>
+                  <Text style={styles.cardDescription} numberOfLines={2}>
+                    {a.description}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )
+        ) : (
+          loadingQuestions ? (
+            <ActivityIndicator size="large" color="#059669" style={{ marginTop: 20 }} />
+          ) : questions.length === 0 ? (
+            <Text style={styles.noContentText}>Nenhuma pergunta publicada</Text>
+          ) : (
+            questions.map(q => (
+              <View key={q.id} style={styles.card}>
+                <View style={styles.questionHeader}>
+                  <Text style={styles.cardTitle}>{q.text}</Text>
+                  <View style={styles.actionIcons}>
+                    <TouchableOpacity style={styles.iconButton}>
+                      <FontAwesome name="pencil" size={18} color="#3B82F6" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteQuestion(q.id)}
+                      style={styles.iconButton}
+                    >
+                      <FontAwesome name="trash" size={18} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {q.images && q.images.length > 0 && (
+                  <Carousel
+                    loop
+                    width={width - 60}
+                    height={180}
+                    autoPlay={false}
+                    data={q.images}
+                    renderItem={({ item }) => (
+                      <Image
+                        source={{ uri: getQuestionImageUrl(item.url) }}
+                        style={styles.cardImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                  />
+                )}
+
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={styles.commentButton}
+                    onPress={() =>
+                      router.replace({
+                        pathname: '/(tabs)/[questionId]',
+                        params: { questionId: q.id }
+                      })
+                    }
+                  >
+                    <FontAwesome name="comments" size={16} color="#059669" />
+                    <Text style={styles.commentText}>Comentários</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )
+        )}
+      </ScrollView>
+
+      {/* Modal de Perfil */}
+      <Modal visible={modalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 12 }}>Editar Perfil</Text>
+            <TextInput style={styles.input} placeholder="Nome" value={name} onChangeText={setName} />
+            <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} />
+            <TextInput style={styles.input} placeholder="Telefone" value={tel} onChangeText={setTel} />
+            <View style={{ flexDirection: 'row', marginTop: 12, justifyContent: 'space-between' }}>
+              <Pressable style={styles.saveButton} onPress={handleUpdateProfile} disabled={isSaving}>
+                <Text style={{ color: '#fff' }}>{isSaving ? 'Salvando...' : 'Salvar'}</Text>
+              </Pressable>
+              <Pressable style={styles.cancelButton} onPress={() => setModalVisible(false)}>
+                <Text style={{ color: '#EF4444' }}>Cancelar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <BottomNavBar />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: {
+  header: { flexDirection: 'row', alignItems: 'center', margin: 16 },
+  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#059669', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#fff', fontSize: 24, fontWeight: '600' },
+  userName: { fontSize: 18, fontWeight: '600', marginLeft: 12, flex: 1 },
+  editButton: { backgroundColor: '#059669', padding: 8, borderRadius: 12 },
+  tabs: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 },
+  tab: { paddingVertical: 8 },
+  activeTab: { borderBottomWidth: 2, borderBottomColor: '#059669' },
+  tabText: { fontSize: 16, color: '#6B7280' },
+  activeTabText: { fontSize: 16, fontWeight: '600', color: '#059669' },
+
+  // Novo botão de anúncio
+  newAdButton: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
-  closeButton: { position: 'absolute', right: 16, padding: 4 },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 20 },
-  input: {
-    fontSize: 16,
-    padding: 14,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    marginBottom: 16,
-    color: '#111827',
-  },
-  footer: {
-    padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  saveButton: {
-    height: 56,
     backgroundColor: '#059669',
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
     borderRadius: 12,
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  logoutButton: {
-    height: 56,
-    justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 12,
-    marginTop: 12,
-    backgroundColor: '#EF4444'
+    justifyContent: 'center',
   },
-  logoutButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
+  newAdButtonText: { color: '#fff', fontSize: 16, fontWeight: '600', marginLeft: 8 },
+
+  card: {
+    position: 'relative',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 10,
+    marginHorizontal: 15,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    alignItems: 'center',
   },
+  deleteIcon: { position: 'absolute', top: 8, right: 8, padding: 6, zIndex: 10 },
+  questionHeader: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  actionIcons: { flexDirection: 'row', gap: 10 },
+  iconButton: { padding: 6 },
+  cardImage: { width: '100%', height: 180, borderRadius: 12, backgroundColor: '#F3F4F6', marginBottom: 8 },
+  placeholderImage: { backgroundColor: '#E5E7EB' },
+  cardTextContainer: { width: '100%', paddingHorizontal: 12, marginTop: 8 },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  cardDescription: { fontSize: 14, color: '#6B7280', marginTop: 4 },
+  noContentText: { textAlign: 'center', color: '#6B7280', margin: 30, fontSize: 16 },
+  cardActions: { width: '100%', flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
+  commentButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#E6F4EA' },
+  commentText: { marginLeft: 6, color: '#059669', fontWeight: '600', fontSize: 14 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', padding: 16 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 12, padding: 16 },
+  input: { fontSize: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: '#fff', marginBottom: 12 },
+  saveButton: { backgroundColor: '#059669', padding: 12, borderRadius: 12, flex: 1, alignItems: 'center' },
+  cancelButton: { borderWidth: 1, borderColor: '#EF4444', padding: 12, borderRadius: 12, flex: 1, alignItems: 'center', marginLeft: 8 },
 });

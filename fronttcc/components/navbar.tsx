@@ -27,12 +27,12 @@ export default function BottomNavBar() {
                 </TouchableOpacity>
             )}
 
-            {user?.role === 'PRODUTOR' && (
+            {/* {user?.role === 'PRODUTOR' && (
                 <TouchableOpacity style={styles.tab} onPress={() => router.push('/(tabs)/my-ads')}>
                     <Ionicons name="pricetag-outline" size={24} color="#059669" />
                     <Text style={styles.tabText}>Meus Anúncios</Text>
                 </TouchableOpacity>
-            )}
+            )} */}
         </View>
     );
 }

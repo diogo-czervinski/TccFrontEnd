@@ -63,24 +63,19 @@ export default function QuestionDetailScreen() {
       Alert.alert('Erro', 'Não foi possível enviar o comentário.');
     }
   };
-  const handleDeleteComment = async (idComment: number) => {
-    console.log("Entrou");
-
-    if (typeof window !== "undefined") {
+  const handleDeleteComment = (idComment: number) => {
+    if (Platform.OS === 'web') {
+      // Web: confirm tradicional
       const confirmDelete = window.confirm("Tem certeza que deseja excluir este comentário?");
       if (!confirmDelete) return;
 
-      try {
-        const res = await api.delete(`/comment/${idComment}`);
-        fetchDetails();
-      } catch (error) {
-        const err = error as AxiosError<any>;
-        alert(err.response?.data?.message || "Não foi possível excluir o comentário.");
-      }
+      api.delete(`/comment/${idComment}`)
+        .then(() => fetchDetails())
+        .catch((err) => alert(err.response?.data?.message || "Não foi possível excluir o comentário."));
       return;
     }
 
-    // No celular (Android/iOS)
+    // Mobile (iOS / Android)
     Alert.alert(
       "Excluir comentário",
       "Tem certeza que deseja excluir este comentário?",
@@ -89,20 +84,16 @@ export default function QuestionDetailScreen() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: async () => {
-            try {
-              const res = await api.delete(`/comment/${idComment}`);
-              fetchDetails();
-            } catch (error) {
-              const err = error as AxiosError<any>;
-              console.log("Erro completo:", err.response?.data || err.message);
-              Alert.alert("Erro", err.response?.data?.message || "Não foi possível excluir o comentário.");
-            }
-          },
-        },
+          onPress: () => {
+            api.delete(`/comment/${idComment}`)
+              .then(() => fetchDetails())
+              .catch((err) => Alert.alert("Erro", err.response?.data?.message || "Não foi possível excluir o comentário."));
+          }
+        }
       ]
     );
   };
+
 
 
   const canDeleteComment = (commentUserId: number) => {
