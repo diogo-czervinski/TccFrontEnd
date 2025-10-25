@@ -12,6 +12,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator, 
+  StatusBar, // ADICIONADO
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/config/api';
@@ -85,21 +86,28 @@ export default function CreateQuestionScreen() {
   };
 
   return (
+    // ALTERADO: SafeAreaView com fundo branco
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -100} // Ajuste fino se necessário
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0} 
       >
+        {/* ALTERADO: Header com estilo da Home (branco + borda) */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Nova Pergunta</Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-            <Feather name="x" size={24} color="#6B7280" />
+            <Feather name="x" size={24} color="#374151" />
           </TouchableOpacity>
         </View>
 
-
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView 
+          style={styles.scroll} 
+          contentContainerStyle={styles.scrollContent} 
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ALTERADO: Input com estilo mais polido */}
           <TextInput
             style={styles.input}
             placeholder="Qual é a sua dúvida sobre o cultivo, mercado ou técnicas da erva-mate?"
@@ -109,7 +117,6 @@ export default function CreateQuestionScreen() {
             onChangeText={setText}
             autoFocus
           />
-
 
           {images.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewScrollView}>
@@ -124,15 +131,15 @@ export default function CreateQuestionScreen() {
             </ScrollView>
           )}
 
-  
+          {/* ALTERADO: Botão de imagem com cores do tema */}
           <TouchableOpacity style={styles.imagePickerButton} onPress={handleSelectImages}>
-            <Feather name="image" size={24} color="#059669" />
+            <Feather name="image" size={24} color="#047857" />
             <Text style={styles.imagePickerButtonText}>Adicionar Imagens</Text>
           </TouchableOpacity>
 
         </ScrollView>
 
-
+        {/* ALTERADO: Footer e Botão de Publicar com cores e sombra do tema */}
         <View style={styles.footer}>
           <TouchableOpacity
             style={[styles.publishButton, isLoading && styles.publishButtonDisabled]}
@@ -153,8 +160,15 @@ export default function CreateQuestionScreen() {
 
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  keyboardContainer: { flex: 1 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#FFFFFF' // Fundo branco
+  },
+  keyboardContainer: { 
+    flex: 1 
+  },
+  
+  // ALTERADO: Header com estilo da Home
   header: {
     flexDirection: 'row',
     justifyContent: 'center', 
@@ -162,7 +176,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E5E7EB', // Borda cinza
+    backgroundColor: '#FFFFFF', // Fundo branco
+    // Adiciona padding top para o StatusBar
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight! + 10 : 40,
   },
   headerTitle: {
     fontSize: 18,
@@ -172,8 +189,10 @@ const styles = StyleSheet.create({
   closeButton: {
     position: 'absolute', 
     right: 16,
+    top: Platform.OS === "android" ? StatusBar.currentHeight! + 10 : 40, // Alinha com o padding
     padding: 4,
   },
+  
   scroll: {
     flex: 1,
   },
@@ -181,18 +200,23 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40, 
   },
+  
+  // ALTERADO: Input com cores do tema
   input: {
     fontSize: 18,
     textAlignVertical: 'top',
     color: '#111827',
     minHeight: 150, 
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F9FAFB', // Cinza claro do tema
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E5E7EB', // Borda cinza do tema
     padding: 16,
     marginBottom: 20,
+    lineHeight: 24, // Melhor espaçamento
   },
+  
+  // ALTERADO: Botão de imagem com cores do tema
   imagePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -200,16 +224,17 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: '#D1FAE5', // Borda verde clara
     borderStyle: 'dashed',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F9FAFB', // Fundo cinza claro
   },
   imagePickerButtonText: {
     fontSize: 16,
-    color: '#059669',
-    fontWeight: '500',
+    color: '#047857', // Verde principal
+    fontWeight: '600',
     marginLeft: 8,
   },
+  
   imagePreviewScrollView: {
     marginBottom: 20,
   },
@@ -234,27 +259,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  
+  // ALTERADO: Footer com padding
   footer: {
     padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16, // Mais espaço no iOS
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
     backgroundColor: '#FFFFFF',
   },
+  
+  // ALTERADO: Botão com cores e sombra do FAB
   publishButton: {
     height: 56,
-    backgroundColor: '#059669',
+    backgroundColor: '#047857', // Verde principal
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 12,
-    shadowColor: '#059669',
+    borderRadius: 16, // Mais arredondado
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-
-    elevation: 8,
+    shadowRadius: 6,
+    elevation: 6,
   },
   publishButtonDisabled: {
-    backgroundColor: '#047857',
+    backgroundColor: '#065F46', // Tom mais escuro
     opacity: 0.8,
   },
   publishButtonText: {

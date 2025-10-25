@@ -3,6 +3,7 @@ import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../config/api';
 import { AxiosError } from 'axios';
+import { Alert } from 'react-native';
 
 interface User {
   id: number;
@@ -20,6 +21,7 @@ interface AuthContextData {
   signOut(): void;
   updateUser(user: Partial<User>): void;
   reloadUser(): Promise<void>;
+  signInGoogle(idToken: string): Promise<void>; // Corrigido
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -48,10 +50,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { access_token } = response.data;
 
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-
       await AsyncStorage.setItem('@RNAuth:token', access_token);
 
-      const profileResponse = await api.get('/user/profile/me',);
+      const profileResponse = await api.get('/user/profile/me');
       const user: User = profileResponse.data;
       setUser(user);
       await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(user));
@@ -74,10 +75,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   async function updateUser(updatedUser: Partial<User>) {
     setUser(currentUser => {
-        if (!currentUser) return null;
-        const newUser = { ...currentUser, ...updatedUser };
-        AsyncStorage.setItem('@RNAuth:user', JSON.stringify(newUser));
-        return newUser;
+      if (!currentUser) return null;
+      const newUser = { ...currentUser, ...updatedUser };
+      AsyncStorage.setItem('@RNAuth:user', JSON.stringify(newUser));
+      return newUser;
     });
   }
 
@@ -89,13 +90,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(freshUser));
     } catch (error) {
       console.error("Falha ao recarregar os dados do usuário:", error);
-      // Opcional: Deslogar se o token for inválido
-      // signOut();
+    }
+  }
+
+  async function signInGoogle(idToken: string) {
+    try {
+      const response = await api.post('/auth/google', { idToken });
+      const { access_token } = response.data;
+
+      api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+      await AsyncStorage.setItem('@RNAuth:token', access_token);
+
+      const profileResponse = await api.get('/user/profile/me');
+      const user: User = profileResponse.data;
+      setUser(user);
+      await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(user));
+
+    } catch (error) {
+      const msg = error instanceof AxiosError && error.response?.data?.message
+        ? error.response.data.message
+        : 'Erro ao logar com Google.';
+      Alert.alert('Erro de Login', msg);
     }
   }
 
   return (
-    <AuthContext.Provider value={{ signed: !!user, user, loading, signIn, signOut, updateUser, reloadUser }}>
+    <AuthContext.Provider value={{ signed: !!user, user, loading, signIn, signOut, updateUser, reloadUser, signInGoogle }}>
       {children}
     </AuthContext.Provider>
   );

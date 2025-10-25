@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const IP = '192.168.1.6'; 
+const IP = '192.168.0.117'; 
 const PORT = 3000;
 
 const baseURL =
