@@ -5,18 +5,18 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
-    "scheme": "fronttcc",
+    "scheme": "fronttcc", 
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.diogo.fronttcc",
+      "bundleIdentifier": "com.diogo.fronttcc", 
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.diogo.fronttcc",
+      "package": "com.diogo.fronttcc", 
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -39,7 +39,7 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser" 
     ],
     "experiments": {
       "typedRoutes": true,
@@ -48,8 +48,10 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "30fe3fd1-1667-45ee-93cc-cf0af5099726"
-      }
+        "projectId": "30fe3fd1-1667-45ee-93cc-cf0af5099726" 
+      },
+      "googleClientIdWeb": "742496123289-a35nvnv10sjh0ik79jje24e4pnsn7p16.apps.googleusercontent.com",
+      "googleClientIdAndroid": "742496123289-jbuqv86ac1isbh31817gma3nauk4vpnj.apps.googleusercontent.com"
     }
   }
 }
