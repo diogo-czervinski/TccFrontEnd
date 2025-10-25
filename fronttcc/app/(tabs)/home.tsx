@@ -14,6 +14,7 @@ import {
   Dimensions,
   Platform,
   Linking,
+  Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -62,10 +63,10 @@ function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
@@ -93,7 +94,7 @@ export default function HomeScreen() {
   const [loadingQuestions, setLoadingQuestions] = useState(true);
   const [ads, setAds] = useState<Ad[]>([]);
   const [loadingAds, setLoadingAds] = useState(true);
-  const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | null>(null);
   const [filter, setFilter] = useState<"recent" | "near">("recent");
 
   // Obter localização
@@ -151,10 +152,26 @@ export default function HomeScreen() {
   const getInitial = (name?: string) => (!name ? "?" : name.charAt(0).toUpperCase());
 
   const openWhatsApp = (tel?: string) => {
-    if (!tel) return;
-    const phone = tel.replace(/\D/g, "");
-    const url = `https://wa.me/${phone}`;
-    Linking.openURL(url).catch(err => console.log("Erro ao abrir WhatsApp:", err));
+    if (!tel) {
+      console.log('Número de telefone não fornecido.');
+      Alert.alert('Contato Indisponível', 'Este anunciante não forneceu um número de telefone.');
+      return;
+    }
+    let phoneDigits = tel.replace(/\D/g, '');
+    if (!phoneDigits.startsWith('55')) {
+      if (phoneDigits.length === 10 || phoneDigits.length === 11) {
+        phoneDigits = '55' + phoneDigits;
+      } else {
+        console.log('Número de telefone com formato inesperado:', phoneDigits);
+        Alert.alert('Número Inválido', 'O formato do número de telefone não é reconhecido.');
+        return;
+      }
+    }
+    const url = `https://wa.me/${phoneDigits}`;
+    Linking.openURL(url).catch(err => {
+      console.log('Erro ao abrir WhatsApp:', err);
+      Alert.alert('Erro', 'Não foi possível abrir o WhatsApp. Verifique se ele está instalado.');
+    });
   };
 
   const openMaps = (localizacao?: string) => {
