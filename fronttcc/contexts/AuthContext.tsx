@@ -2,7 +2,7 @@ import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../config/api';
 import { AxiosError } from 'axios';
-import { Alert } from 'react-native';
+import { Alert, ActivityIndicator, View } from 'react-native';
 
 interface User {
   id: number;
@@ -10,14 +10,15 @@ interface User {
   email: string;
   role: 'PRODUTOR' | 'TAREFEIRO';
   tel?: string;
+  avatarUrl?: string;
 }
 
 interface AuthContextData {
   signed: boolean;
   user: User | null;
   loading: boolean;
-  signIn(credentials: object): Promise<void>;
-  signOut(): void;
+  signIn(credentials: { email: string; password: string }): Promise<void>;
+  signOut(): Promise<void>;
   updateUser(user: Partial<User>): void;
   reloadUser(): Promise<void>;
 }
@@ -28,21 +29,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // ✅ Verifica se há token e usuário salvos
   useEffect(() => {
     async function loadStorageData() {
-      const storagedUser = await AsyncStorage.getItem('@RNAuth:user');
-      const storagedToken = await AsyncStorage.getItem('@RNAuth:token');
+      try {
+        const storagedUser = await AsyncStorage.getItem('@RNAuth:user');
+        const storagedToken = await AsyncStorage.getItem('@RNAuth:token');
 
-      if (storagedUser && storagedToken) {
-        api.defaults.headers.common['Authorization'] = `Bearer ${storagedToken}`;
-        setUser(JSON.parse(storagedUser));
+        if (storagedUser && storagedToken) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${storagedToken}`;
+
+          // Testa se o token ainda é válido
+          const profileResponse = await api.get('/user/profile/me');
+          const freshUser: User = profileResponse.data;
+          setUser(freshUser);
+          await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(freshUser));
+        }
+      } catch (error) {
+        console.log('⚠️ Token expirado ou inválido, limpando dados...');
+        await AsyncStorage.clear();
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
+
     loadStorageData();
   }, []);
 
-  async function signIn(credentials: object) {
+  // ✅ Função de login
+  async function signIn(credentials: { email: string; password: string }) {
     try {
       const response = await api.post('/login', credentials);
       const { access_token } = response.data;
@@ -51,9 +67,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await AsyncStorage.setItem('@RNAuth:token', access_token);
 
       const profileResponse = await api.get('/user/profile/me');
-      const user: User = profileResponse.data;
-      setUser(user);
-      await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(user));
+      const loggedUser: User = profileResponse.data;
+      setUser(loggedUser);
+      await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(loggedUser));
     } catch (error) {
       if (error instanceof AxiosError && error.response) {
         const backendMessage =
@@ -65,13 +81,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  // ✅ Logout
   async function signOut() {
     await AsyncStorage.clear();
     setUser(null);
   }
 
-  async function updateUser(updatedUser: Partial<User>) {
-    setUser(currentUser => {
+  // ✅ Atualiza dados locais do usuário
+  function updateUser(updatedUser: Partial<User>) {
+    setUser((currentUser) => {
       if (!currentUser) return null;
       const newUser = { ...currentUser, ...updatedUser };
       AsyncStorage.setItem('@RNAuth:user', JSON.stringify(newUser));
@@ -79,6 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }
 
+  // ✅ Recarrega perfil mais recente
   async function reloadUser() {
     try {
       const profileResponse = await api.get('/user/profile/me');
@@ -86,8 +105,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(freshUser);
       await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(freshUser));
     } catch (error) {
-      console.error("Falha ao recarregar os dados do usuário:", error);
+      console.error('❌ Falha ao recarregar os dados do usuário:', error);
     }
+  }
+
+  // ✅ Mostra tela de carregamento enquanto verifica o token
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
   }
 
   return (

@@ -1,4 +1,3 @@
-// app/(tabs)/home.tsx
 import React, { useContext, useState, useEffect } from "react";
 import {
   View,
@@ -15,6 +14,7 @@ import {
   Platform,
   Linking,
   Alert,
+  TextInput,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -22,14 +22,19 @@ import api from "../../config/api";
 import AuthContext from "../../contexts/AuthContext";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
+import Modal from "react-native-modal";
+import ImageViewer from "react-native-image-zoom-viewer";
+import AntDesign from '@expo/vector-icons/AntDesign';
 
 const { width } = Dimensions.get("window");
 
+// Ajuste da interface: agora inclui avatarUrl
 interface User {
   id: number;
   name?: string;
   role?: "PRODUTOR" | "TAREFEIRO";
   tel?: string;
+  avatarUrl?: string;
 }
 
 interface QuestionImage {
@@ -39,8 +44,9 @@ interface QuestionImage {
 interface Question {
   id: number;
   text: string;
-  user: { name: string };
+  user: User; // agora espera avatarUrl
   images?: QuestionImage[];
+  createdAt: string;
 }
 
 interface AdImage {
@@ -54,23 +60,50 @@ interface Ad {
   localizacao?: string;
   user?: User;
   images?: AdImage[];
-  createdAt: string; // já vem do back
+  createdAt: string;
 }
 
-// Haversine para calcular distância
+// Função utilitária para mostrar avatar ou inicial
+function UserAvatar({ avatarUrl, name, size = 40 }: { avatarUrl?: string, name?: string, size?: number }) {
+  if (avatarUrl) {
+    // Se vier /uploads, corrige para URL completa (ajuste conforme API)
+    const src = avatarUrl.startsWith('http') ? avatarUrl : `${api.defaults.baseURL}${avatarUrl}`;
+    return (
+      <Image
+        source={{ uri: src }}
+        style={{
+          width: size, height: size, borderRadius: size / 2,
+          backgroundColor: "#E5E7EB",
+        }}
+      />
+    );
+  }
+  // Senão, mostra inicial
+  return (
+    <View style={{
+      width: size, height: size, borderRadius: size / 2,
+      backgroundColor: "#D1FAE5", justifyContent: "center", alignItems: "center"
+    }}>
+      <Text style={{ color: "#065F46", fontWeight: "bold", fontSize: size / 2 }}>
+        {name ? name.charAt(0).toUpperCase() : "?"}
+      </Text>
+    </View>
+  );
+}
+
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
-// Formata tempo decorrido
 function getTimeAgo(dateString: string) {
   const now = new Date();
   const past = new Date(dateString);
@@ -85,19 +118,24 @@ function getTimeAgo(dateString: string) {
 }
 
 export default function HomeScreen() {
-  const { user: userFromContext } = useContext(AuthContext);
+  const { user: userFromContext, signOut } = useContext(AuthContext);
   const user = userFromContext as User | null;
   const router = useRouter();
 
   const [showQuestions, setShowQuestions] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [search, setSearch] = useState("");
   const [loadingQuestions, setLoadingQuestions] = useState(true);
   const [ads, setAds] = useState<Ad[]>([]);
   const [loadingAds, setLoadingAds] = useState(true);
   const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | null>(null);
   const [filter, setFilter] = useState<"recent" | "near">("recent");
 
-  // Obter localização
+  // Modal for zoom/carousel
+  const [adModalVisible, setAdModalVisible] = useState(false);
+  const [adModalImages, setAdModalImages] = useState<{url: string}[]>([]);
+  const [adModalIndex, setAdModalIndex] = useState(0);
+
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -149,11 +187,9 @@ export default function HomeScreen() {
 
   const getQuestionImageURL = (filename: string) => `${api.defaults.baseURL}/uploads/questions/${filename}`;
   const getAdImageURL = (filename: string) => `${api.defaults.baseURL}/uploads/ads/${filename}`;
-  const getInitial = (name?: string) => (!name ? "?" : name.charAt(0).toUpperCase());
 
   const openWhatsApp = (tel?: string) => {
     if (!tel) {
-      console.log('Número de telefone não fornecido.');
       Alert.alert('Contato Indisponível', 'Este anunciante não forneceu um número de telefone.');
       return;
     }
@@ -162,16 +198,12 @@ export default function HomeScreen() {
       if (phoneDigits.length === 10 || phoneDigits.length === 11) {
         phoneDigits = '55' + phoneDigits;
       } else {
-        console.log('Número de telefone com formato inesperado:', phoneDigits);
         Alert.alert('Número Inválido', 'O formato do número de telefone não é reconhecido.');
         return;
       }
     }
     const url = `https://wa.me/${phoneDigits}`;
-    Linking.openURL(url).catch(err => {
-      console.log('Erro ao abrir WhatsApp:', err);
-      Alert.alert('Erro', 'Não foi possível abrir o WhatsApp. Verifique se ele está instalado.');
-    });
+    Linking.openURL(url).catch(() => Alert.alert('Erro', 'Não foi possível abrir o WhatsApp.'));
   };
 
   const openMaps = (localizacao?: string) => {
@@ -180,14 +212,17 @@ export default function HomeScreen() {
       const { latitude, longitude } = JSON.parse(localizacao);
       if (latitude && longitude) {
         const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
-        Linking.openURL(url).catch(err => console.log("Erro ao abrir o mapa:", err));
+        Linking.openURL(url);
       }
     } catch (error) {
       console.log("Erro ao processar a localização para o mapa:", error);
     }
   };
 
-  // Filtrar e ordenar anúncios
+  const filteredQuestions = questions.filter((q) =>
+    q.text.toLowerCase().includes(search.toLowerCase())
+  );
+
   const sortedAds = [...ads].sort((a, b) => {
     if (filter === "recent") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     if (filter === "near" && userLocation) {
@@ -201,6 +236,13 @@ export default function HomeScreen() {
     return 0;
   });
 
+  // Modal logic for zoom and carousel
+  const handleOpenAdImages = (images: AdImage[], index: number = 0) => {
+    setAdModalImages(images.map(img => ({ url: getAdImageURL(img.url) })));
+    setAdModalIndex(index);
+    setAdModalVisible(true);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { paddingTop: Platform.OS === "android" ? StatusBar.currentHeight! + 10 : 30 }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
@@ -208,7 +250,8 @@ export default function HomeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerProfile} onPress={() => router.push("/(tabs)/EditProfile")}>
-          <View style={styles.avatarLarge}><Text style={styles.avatarLetter}>{getInitial(user?.name)}</Text></View>
+          {/* Avatar do usuário logado */}
+          <UserAvatar avatarUrl={user?.avatarUrl} name={user?.name} size={55} />
           <View>
             <Text style={styles.greeting}>Olá,</Text>
             <Text style={styles.username}>{user?.name}</Text>
@@ -222,114 +265,173 @@ export default function HomeScreen() {
               <Feather name={showQuestions ? "list" : "shopping-bag"} size={20} color="#fff" />
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                "Sair",
+                "Tem certeza que deseja sair?",
+                [
+                  { text: "Cancelar", style: "cancel" },
+                  {
+                    text: "Sair", style: "destructive", onPress: async () => {
+                      await signOut(); 
+                      router.replace("/"); 
+                    }
+                  }
+                ]
+              );
+            }}
+            style={styles.logoutButton}
+            activeOpacity={0.7}
+          >
+            <Feather name="log-out" size={22} color="#EF4444" />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Filtros */}
-      {user?.role === "TAREFEIRO" && !showQuestions && (
-        <View style={{ flexDirection: "row", justifyContent: "center", marginVertical: 8, gap: 12 }}>
-          <TouchableOpacity onPress={() => setFilter("recent")} style={{ padding: 6, backgroundColor: filter === "recent" ? "#047857" : "#E5E7EB", borderRadius: 8 }}>
-            <Text style={{ color: filter === "recent" ? "#fff" : "#374151" }}>Mais Recentes</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setFilter("near")} style={{ padding: 6, backgroundColor: filter === "near" ? "#047857" : "#E5E7EB", borderRadius: 8 }}>
-            <Text style={{ color: filter === "near" ? "#fff" : "#374151" }}>Mais Perto</Text>
-          </TouchableOpacity>
+      {user?.role === "PRODUTOR" && (
+        <View style={styles.searchContainer}>
+          <Feather name="search" size={18} color="#6B7280" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Pesquisar dúvidas..."
+            placeholderTextColor="#9CA3AF"
+            value={search}
+            onChangeText={setSearch}
+          />
         </View>
       )}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        {user?.role === "TAREFEIRO" && !showQuestions ? (
-          loadingAds ? (
+        {/* Perguntas */}
+        {user?.role !== "TAREFEIRO" || showQuestions ? (
+          loadingQuestions ? (
             <ActivityIndicator size="large" color="#047857" style={{ marginTop: 30 }} />
-          ) : sortedAds.length === 0 ? (
-            <Text style={styles.noQuestionsText}>Nenhum anúncio disponível.</Text>
+          ) : filteredQuestions.length === 0 ? (
+            <Text style={styles.noQuestionsText}>Nenhuma pergunta encontrada.</Text>
           ) : (
-            sortedAds.map(ad => {
-              const adCoords = ad.localizacao ? JSON.parse(ad.localizacao) : null;
-              let distanciaKm: number | null = null;
-              if (adCoords && userLocation) {
-                distanciaKm = getDistanceFromLatLonInKm(userLocation.latitude, userLocation.longitude, adCoords.latitude, adCoords.longitude);
-              }
-
-              return (
-                <View key={ad.id} style={styles.adCard}>
-                  {ad.user?.name && (
-                    <View style={styles.postHeader}>
-                      <View style={styles.avatarSmall}><Text style={styles.avatarLetter}>{getInitial(ad.user?.name)}</Text></View>
-                      <Text style={styles.authorName}>
-                        {ad.user.name} {distanciaKm !== null && `· ${distanciaKm.toFixed(1)} km`}
-                      </Text>
-                    </View>
-                  )}
-
-                  <Text style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>{getTimeAgo(ad.createdAt)}</Text>
-
-                  <Text style={styles.adTitle}>{ad.title}</Text>
-                  {ad.description && <Text style={styles.adDescription}>{ad.description}</Text>}
-
-                  {ad.images && ad.images.length > 0 && (
-                    <FlatList
-                      data={ad.images}
-                      horizontal
-                      keyExtractor={(_, i) => i.toString()}
-                      showsHorizontalScrollIndicator={false}
-                      renderItem={({ item }) => <Image source={{ uri: getAdImageURL(item.url) }} style={styles.adImage} />}
-                      contentContainerStyle={{ gap: 10 }}
-                    />
-                  )}
-
-                  <View style={styles.adIconsContainer}>
-                    {ad.localizacao && <TouchableOpacity style={styles.adIconButton} onPress={() => openMaps(ad.localizacao)}><Feather name="map-pin" size={20} color="#047857" /></TouchableOpacity>}
-                    {ad.user?.tel && <TouchableOpacity style={styles.adIconButton} onPress={() => openWhatsApp(ad.user?.tel)}><Feather name="message-circle" size={20} color="#25D366" /></TouchableOpacity>}
-                  </View>
-                </View>
-              );
-            })
-          )
-        ) : loadingQuestions ? (
-          <ActivityIndicator size="large" color="#047857" style={{ marginTop: 30 }} />
-        ) : questions.length === 0 ? (
-          <Text style={styles.noQuestionsText}>Ainda não há perguntas. Seja o primeiro!</Text>
-        ) : (
-          questions.map(q => (
-            <TouchableOpacity
-              key={q.id}
-              activeOpacity={0.9}
-              style={styles.postCard}
-              onPress={() => router.replace({ pathname: "/(tabs)/[questionId]", params: { questionId: q.id } })}
-            >
-              <View style={styles.postHeader}>
-                <View style={styles.avatarSmall}><Text style={styles.avatarLetter}>{getInitial(q.user.name)}</Text></View>
-                <Text style={styles.authorName}>{q.user.name}</Text>
-              </View>
-
-              <Text style={styles.postText}>{q.text}</Text>
-
-              {q.images && q.images.length > 0 && (
-                <FlatList
-                  data={q.images}
-                  horizontal
-                  keyExtractor={(_, i) => i.toString()}
-                  showsHorizontalScrollIndicator={false}
-                  renderItem={({ item }) => <Image source={{ uri: getQuestionImageURL(item.url) }} style={styles.postImage} />}
-                  contentContainerStyle={{ gap: 10 }}
-                />
-              )}
-
+            filteredQuestions.map(q => (
               <TouchableOpacity
-                style={styles.commentButton}
-                activeOpacity={0.7}
+                key={q.id}
+                activeOpacity={0.9}
+                style={styles.postCard}
                 onPress={() => router.replace({ pathname: "/(tabs)/[questionId]", params: { questionId: q.id } })}
               >
-                <Feather name="message-circle" size={18} color="#047857" />
-                <Text style={styles.commentText}>Ver e comentar</Text>
+                <View style={styles.postHeader}>
+                  {/* Avatar na pergunta */}
+                  <UserAvatar avatarUrl={q.user.avatarUrl} name={q.user.name} size={40} />
+                  <Text style={styles.authorName}>{q.user.name}</Text>
+                </View>
+
+                <Text style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>
+                  {getTimeAgo(q.createdAt)}
+                </Text>
+
+                <Text style={styles.postText}>{q.text}</Text>
+
+                {q.images && q.images.length > 0 && (
+                  <FlatList
+                    data={q.images}
+                    horizontal
+                    keyExtractor={(_, i) => i.toString()}
+                    showsHorizontalScrollIndicator={false}
+                    renderItem={({ item }) => <Image source={{ uri: getQuestionImageURL(item.url) }} style={styles.postImage} />}
+                    contentContainerStyle={{ gap: 10 }}
+                  />
+                )}
+
+                <TouchableOpacity
+                  style={styles.commentButton}
+                  activeOpacity={0.7}
+                  onPress={() => router.replace({ pathname: "/(tabs)/[questionId]", params: { questionId: q.id } })}
+                >
+                  <Feather name="message-circle" size={18} color="#047857" />
+                  <Text style={styles.commentText}>Ver e comentar</Text>
+                </TouchableOpacity>
               </TouchableOpacity>
-            </TouchableOpacity>
-          ))
+            ))
+          )
+        ) : null}
+
+        {/* Anúncios */}
+        {user?.role === "TAREFEIRO" && !showQuestions && (
+          loadingAds ? (
+            <ActivityIndicator size="large" color="rgba(4, 120, 87, 1)" style={{ marginTop: 30 }} />
+          ) : sortedAds.length === 0 ? (
+            <Text style={styles.noQuestionsText}>Nenhum anúncio encontrado.</Text>
+          ) : (
+            sortedAds.map((ad, adIdx) => (
+              <View key={ad.id} style={styles.postCard}>
+                <View style={styles.postHeader}>
+                  {/* Avatar nos anúncios */}
+                  <UserAvatar avatarUrl={ad.user?.avatarUrl} name={ad.user?.name} size={40} />
+                  <Text style={styles.authorName}>{ad.user?.name || "Anunciante"}</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>
+                  {getTimeAgo(ad.createdAt)}
+                </Text>
+                <Text style={styles.postText}>{ad.title}</Text>
+                {ad.description && <Text style={{ color: "#374151", fontSize: 14, marginBottom: 6 }}>{ad.description}</Text>}
+
+                {/* Carrossel de imagens + zoom */}
+                {ad.images && ad.images.length > 0 && (
+                  <FlatList
+                    data={ad.images}
+                    horizontal
+                    keyExtractor={(_, i) => i.toString()}
+                    showsHorizontalScrollIndicator={false}
+                    renderItem={({ item, index }) => (
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => handleOpenAdImages(ad.images!, index)}
+                      >
+                        <Image source={{ uri: getAdImageURL(item.url) }} style={styles.postImage} />
+                      </TouchableOpacity>
+                    )}
+                    contentContainerStyle={{ gap: 10 }}
+                  />
+                )}
+
+                {/* Minimalist action buttons */}
+                <View style={{ flexDirection: "row", marginTop: 12, gap: 16, justifyContent: "flex-end" }}>
+                  {/* Botão WhatsApp */}
+                  <TouchableOpacity
+                    style={styles.iconCircleButton}
+                    onPress={() => openWhatsApp(ad.user?.tel)}
+                  >
+                    <AntDesign name="whats-app" size={24} color="rgba(4, 120, 87, 1)" />
+                  </TouchableOpacity>
+                  {/* Botão Maps */}
+                  <TouchableOpacity
+                    style={styles.iconCircleButton}
+                    onPress={() => openMaps(ad.localizacao)}
+                  >
+                    <Feather name="map-pin" size={22} color="rgba(4, 120, 87, 1)" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )
         )}
       </ScrollView>
 
-      {/* FAB para criar pergunta, para PRODUTOR e TAREFEIRO */}
+      <Modal
+        isVisible={adModalVisible}
+        onBackdropPress={() => setAdModalVisible(false)}
+        onBackButtonPress={() => setAdModalVisible(false)}
+        style={{ margin: 0 }}
+      >
+        <ImageViewer
+          imageUrls={adModalImages}
+          index={adModalIndex}
+          enableSwipeDown
+          onSwipeDown={() => setAdModalVisible(false)}
+          backgroundColor="rgba(0,0,0,0.95)"
+          renderIndicator={() => <></>}
+          saveToLocalByLongPress={false}
+        />
+      </Modal>
+
       {(user?.role === "PRODUTOR" || (user?.role === "TAREFEIRO" && showQuestions)) && (
         <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => router.push("/(tabs)/createQuestion")}>
           <Feather name="edit-3" size={24} color="#fff" />
@@ -343,11 +445,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 22, paddingVertical: 10, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   headerProfile: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatarLarge: { width: 55, height: 55, borderRadius: 28, backgroundColor: "#D1FAE5", justifyContent: "center", alignItems: "center" },
-  avatarSmall: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#D1FAE5", justifyContent: "center", alignItems: "center" },
-  avatarLetter: { fontSize: 16, fontWeight: "700", color: "#065F46" },
   greeting: { fontSize: 14, color: "#6B7280" },
   username: { fontSize: 18, fontWeight: "700", color: "#111827" },
+  searchContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", marginHorizontal: 16, marginTop: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+  searchInput: { flex: 1, height: 40, marginLeft: 8, color: "#111827" },
   postCard: { backgroundColor: "#fff", marginHorizontal: 16, marginVertical: 10, borderRadius: 18, padding: 14 },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
   authorName: { fontWeight: "600", fontSize: 15, color: "#111827" },
@@ -357,10 +458,38 @@ const styles = StyleSheet.create({
   commentText: { color: "#047857", fontSize: 14, fontWeight: "600" },
   noQuestionsText: { textAlign: "center", color: "#6B7280", marginTop: 40, fontSize: 16 },
   fab: { position: "absolute", bottom: 90, right: 20, backgroundColor: "#047857", width: 60, height: 60, borderRadius: 30, justifyContent: "center", alignItems: "center", shadowColor: "#000", shadowOpacity: 0.2, shadowOffset: { width: 0, height: 4 }, shadowRadius: 6, elevation: 6 },
-  adCard: { backgroundColor: "#fff", marginHorizontal: 16, marginVertical: 10, borderRadius: 18, padding: 14 },
-  adTitle: { fontWeight: "700", fontSize: 16, color: "#111827" },
-  adDescription: { fontSize: 14, color: "#374151", marginBottom: 10 },
-  adImage: { width: width * 0.85, height: 200, borderRadius: 12, backgroundColor: "#E5E7EB" },
-  adIconsContainer: { flexDirection: "row", justifyContent: "flex-start", gap: 16, marginTop: 8 },
-  adIconButton: { padding: 6, borderRadius: 12, backgroundColor: "#fff", elevation: 2 },
+  logoutButton: {
+    padding: 6,
+    backgroundColor: "#FEE2E2",
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionButton: {
+    backgroundColor: "#047857",
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+    gap: 8,
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  iconCircleButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
 });

@@ -11,8 +11,6 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
-  Modal,
-  Pressable,
   Keyboard,
   Platform,
   Animated,
@@ -21,12 +19,40 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '@/config/api';
 import AuthContext from '@/contexts/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
+import Modal from 'react-native-modal';
+import ImageViewer from 'react-native-image-zoom-viewer';
+
+// Avatar componet (igual UserPanel)
+function UserAvatar({ avatarUrl, name, size = 32 }: { avatarUrl?: string, name?: string, size?: number }) {
+  if (avatarUrl) {
+    const src = avatarUrl.startsWith('http') ? avatarUrl : `${api.defaults.baseURL}${avatarUrl}`;
+    return (
+      <Image
+        source={{ uri: src }}
+        style={{
+          width: size, height: size, borderRadius: size / 2,
+          backgroundColor: "#E5E7EB",
+        }}
+      />
+    );
+  }
+  return (
+    <View style={{
+      width: size, height: size, borderRadius: size / 2,
+      backgroundColor: "#D1FAE5", justifyContent: "center", alignItems: "center"
+    }}>
+      <Text style={{ color: "#065F46", fontWeight: "bold", fontSize: size / 2 }}>
+        {name ? name.charAt(0).toUpperCase() : "?"}
+      </Text>
+    </View>
+  );
+}
 
 interface Comment {
   id: number;
   text: string;
-  user: { name: string; id: number };
+  user: { name: string; id: number; avatarUrl?: string };
 }
 interface QuestionImage {
   id: number;
@@ -35,7 +61,7 @@ interface QuestionImage {
 interface Question {
   id: number;
   text: string;
-  user: { name: string; id: number };
+  user: { name: string; id: number; avatarUrl?: string };
   comments: Comment[];
   images?: QuestionImage[];
 }
@@ -72,7 +98,6 @@ export default function QuestionDetailScreen() {
     fetchDetails();
   }, [questionId]);
 
-  // Keyboard listeners
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
       Animated.timing(keyboardHeight, {
@@ -153,9 +178,8 @@ export default function QuestionDetailScreen() {
             }
           }}
         >
-          <Ionicons name="arrow-back" size={22} color="#059669" />
+          <Feather name="arrow-left" size={24} color="#374151" />
         </TouchableOpacity>
-
         <Text style={styles.headerTitle}>Detalhes da Pergunta</Text>
       </View>
 
@@ -182,11 +206,22 @@ export default function QuestionDetailScreen() {
           )}
         </View>
 
-        {/* Modal Zoom */}
-        <Modal visible={!!zoomImage} transparent animationType="fade">
-          <Pressable style={styles.zoomContainer} onPress={() => setZoomImage(null)}>
-            <Image source={{ uri: zoomImage || '' }} style={styles.zoomImage} resizeMode="contain" />
-          </Pressable>
+        <Modal
+          isVisible={!!zoomImage}
+          onBackdropPress={() => setZoomImage(null)}
+          onBackButtonPress={() => setZoomImage(null)}
+          style={{ margin: 0 }}
+        >
+          {zoomImage && (
+            <ImageViewer
+              imageUrls={[{ url: zoomImage }]}
+              enableSwipeDown
+              onSwipeDown={() => setZoomImage(null)}
+              backgroundColor="rgba(0,0,0,0.95)"
+              renderIndicator={() => <></>}
+              saveToLocalByLongPress={false}
+            />
+          )}
         </Modal>
 
         {/* Comentários */}
@@ -198,16 +233,11 @@ export default function QuestionDetailScreen() {
         {question?.comments?.map((comment) => (
           <View key={comment.id} style={styles.commentCard}>
             <View style={styles.commentHeader}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarLetter}>
-                  {comment.user?.name?.charAt(0).toUpperCase() || 'U'}
-                </Text>
-              </View>
+              <UserAvatar avatarUrl={comment.user?.avatarUrl} name={comment.user?.name} size={32} />
               <Text style={styles.commentAuthor}>{comment.user?.name}</Text>
-
               {canDeleteComment(comment.user.id) && (
                 <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
-                  <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                  <Feather name="trash-2" size={20} color="#DC2626" />
                 </TouchableOpacity>
               )}
             </View>
@@ -226,7 +256,7 @@ export default function QuestionDetailScreen() {
           onChangeText={setCommentText}
         />
         <TouchableOpacity style={styles.sendButton} onPress={handlePostComment}>
-          <Ionicons name="send" size={20} color="#FFF" />
+          <Feather name="send" size={20} color="#FFF" />
         </TouchableOpacity>
       </Animated.View>
     </SafeAreaView>
@@ -248,11 +278,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    elevation: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
+    elevation: 2,
   },
   backButton: {
     backgroundColor: '#D1FAE5',
@@ -274,14 +305,6 @@ const styles = StyleSheet.create({
   questionAuthor: { fontSize: 14, color: '#6B7280', marginTop: 10 },
   questionImage: { width: 150, height: 150, borderRadius: 10, marginRight: 10 },
 
-  zoomContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  zoomImage: { width: '90%', height: '90%' },
-
   commentsTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -298,17 +321,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     elevation: 1,
   },
-  commentHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#D1FAE5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  avatarLetter: { color: '#065F46', fontWeight: 'bold' },
+  commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   commentAuthor: { fontSize: 14, fontWeight: 'bold', color: '#111827', flex: 1 },
   commentText: { fontSize: 15, color: '#374151' },
 

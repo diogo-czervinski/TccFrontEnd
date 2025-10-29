@@ -12,10 +12,35 @@ import AuthContext from '@/contexts/AuthContext';
 import api from '@/config/api';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-// import BottomNavBar from '@/components/navbar'; // REMOVIDO
 
 const { width } = Dimensions.get('window');
 const cardContentWidth = width - 60;
+
+// Avatar component (from HomeScreen)
+function UserAvatar({ avatarUrl, name, size = 55 }: { avatarUrl?: string, name?: string, size?: number }) {
+  if (avatarUrl) {
+    const src = avatarUrl.startsWith('http') ? avatarUrl : `${api.defaults.baseURL}${avatarUrl}`;
+    return (
+      <Image
+        source={{ uri: src }}
+        style={{
+          width: size, height: size, borderRadius: size / 2,
+          backgroundColor: "#E5E7EB",
+        }}
+      />
+    );
+  }
+  return (
+    <View style={{
+      width: size, height: size, borderRadius: size / 2,
+      backgroundColor: "#D1FAE5", justifyContent: "center", alignItems: "center"
+    }}>
+      <Text style={{ color: "#065F46", fontWeight: "bold", fontSize: size / 2 }}>
+        {name ? name.charAt(0).toUpperCase() : "?"}
+      </Text>
+    </View>
+  );
+}
 
 // ### CORREÇÃO 1: Interface SelectedImage atualizada ###
 interface SelectedImage {
@@ -106,7 +131,6 @@ export default function UserPanel() {
 
   const getAdImageUrl = (filename: string) => `${api.defaults.baseURL}/uploads/ads/${filename}`;
   const getQuestionImageUrl = (filename: string) => `${api.defaults.baseURL}/uploads/questions/${filename}`;
-  const getInitial = (name: string | undefined | null) => (name ? name.charAt(0).toUpperCase() : '?');
 
   const handleUpdateProfile = async () => {
     setIsSaving(true);
@@ -179,7 +203,7 @@ export default function UserPanel() {
         uri: asset.uri,
         fileName: asset.fileName || 'unknown.jpg', 
         type: asset.mimeType || 'image/jpeg',     
-        assetId: asset.assetId, // (string | null | undefined)
+        assetId: asset.assetId,
       }));
       setNewImagesToAdd(prev => [...prev, ...newSelectedImages]);
       setEditImages(prev => [...prev, ...newSelectedImages]);
@@ -189,17 +213,10 @@ export default function UserPanel() {
   // ### CORREÇÃO 2: Lógica de remoção simplificada ###
   const handleRemoveImageFromEdit = (imgToRemove: AdImage | SelectedImage) => {
     if ('id' in imgToRemove) {
-      // É uma imagem antiga (AdImage). Adiciona na lista para deletar.
       setImagesToDelete(prev => [...prev, imgToRemove.id]);
-      
-      // Remove do preview (filtrando por 'id')
       setEditImages(prev => prev.filter(img => !('id' in img) || img.id !== imgToRemove.id));
-      
     } else {
-      // É uma imagem nova (SelectedImage). Remove da lista de 'novas'.
       setNewImagesToAdd(prev => prev.filter(img => img.assetId !== imgToRemove.assetId));
-      
-      // Remove do preview (filtrando por 'assetId')
       setEditImages(prev => prev.filter(img => !('assetId' in img) || img.assetId !== imgToRemove.assetId));
     }
   };
@@ -223,15 +240,13 @@ export default function UserPanel() {
       formData.append('localizacao', JSON.stringify(editLocation));
       formData.append('address', editAddress);
 
-      // 1. Marcar imagens para exclusão
       imagesToDelete.forEach(imgId => {
         formData.append('imagesToDelete[]', String(imgId));
       });
 
-      // 2. Adicionar novas imagens
       newImagesToAdd.forEach(img => {
         const fileName = img.fileName;
-        if (!fileName) return; // Segurança
+        if (!fileName) return;
         
         const uriParts = fileName.split('.');
         const ext = (uriParts.pop() || '').toLowerCase();
@@ -258,8 +273,7 @@ export default function UserPanel() {
         headers: { 'Content-Type': 'multipart/form-data' } 
       });
       
-      fetchAds(); // Re-fetch para garantir consistência
-
+      fetchAds();
       setEditAdModalVisible(false);
       setSelectedAd(null);
       Alert.alert('Sucesso!', 'Anúncio atualizado.');
@@ -345,6 +359,8 @@ export default function UserPanel() {
     return questions.map(q => (
       <View key={q.id} style={styles.card}>
         <View style={styles.cardHeader}>
+          {/* Avatar do usuário logado */}
+          <UserAvatar avatarUrl={user?.avatarUrl} name={user?.name} size={40} />
           <Text style={styles.cardTitle}>{q.text}</Text>
           <Text style={styles.cardDate}>{timeAgo(q.createdAt)}</Text>
           <View style={styles.actionIcons}>
@@ -396,6 +412,10 @@ export default function UserPanel() {
             </Pressable>
           </View>
           <ScrollView style={styles.modalBody}>
+            {/* Avatar do usuário logado */}
+            <View style={{ alignItems: 'center', marginBottom: 24 }}>
+              <UserAvatar avatarUrl={user?.avatarUrl} name={user?.name} size={70} />
+            </View>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Nome</Text>
               <TextInput style={styles.input} placeholder="Seu nome completo" value={name} onChangeText={setName} />
@@ -418,7 +438,6 @@ export default function UserPanel() {
     <Modal visible={editAdModalVisible} animationType="slide">
       <SafeAreaView style={styles.modalContainer}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          
           <View style={styles.modalHeader}>
             <Pressable onPress={() => setEditAdModalVisible(false)} style={styles.modalHeaderButton}>
               <Text style={styles.modalCancelButtonText}>Cancelar</Text>
@@ -430,7 +449,6 @@ export default function UserPanel() {
               </Text>
             </Pressable>
           </View>
-          
           <ScrollView style={styles.modalBody}>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Título</Text>
@@ -452,8 +470,6 @@ export default function UserPanel() {
                 numberOfLines={5}
               />
             </View>
-
-            {/* SEÇÃO DE IMAGENS */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Imagens</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
@@ -474,8 +490,6 @@ export default function UserPanel() {
                 <Text style={styles.imagePickerButtonText}>Adicionar Novas Imagens</Text>
               </TouchableOpacity>
             </View>
-
-            {/* SEÇÃO DE LOCALIZAÇÃO */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Localização</Text>
                 <TouchableOpacity 
@@ -489,7 +503,6 @@ export default function UserPanel() {
                 </TouchableOpacity>
                 {editAddress ? <Text style={styles.addressText}>{editAddress}</Text> : null}
             </View>
-
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -541,7 +554,6 @@ export default function UserPanel() {
               <Text style={styles.modalSaveButtonText}>Confirmar</Text>
             </Pressable>
           </View>
-
           <WebView
             originWhitelist={['*']}
             source={{ html }}
@@ -567,9 +579,8 @@ export default function UserPanel() {
               <Feather name="arrow-left" size={24} color="#374151" />
             </TouchableOpacity>
             <View style={styles.headerProfile}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{getInitial(user?.name)}</Text>
-              </View>
+              {/* Avatar do usuário logado */}
+              <UserAvatar avatarUrl={user?.avatarUrl} name={user?.name} size={55} />
               <View>
                 <Text style={styles.greeting}>Meu Perfil</Text>
                 <Text style={styles.userName}>{user?.name}</Text>
@@ -603,7 +614,6 @@ export default function UserPanel() {
 
       {renderProfileModal()}
       {renderEditAdModal()}
-      {/* <BottomNavBar /> REMOVIDO */}
     </SafeAreaView>
   );
 }

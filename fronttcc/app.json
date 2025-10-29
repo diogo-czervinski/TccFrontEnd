@@ -18,7 +18,8 @@
     "android": {
       "package": "com.diogo.fronttcc", 
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "usesCleartextTraffic": true
     },
     "web": {
       "output": "static",
@@ -50,8 +51,7 @@
       "eas": {
         "projectId": "30fe3fd1-1667-45ee-93cc-cf0af5099726" 
       },
-      "googleClientIdWeb": "742496123289-a35nvnv10sjh0ik79jje24e4pnsn7p16.apps.googleusercontent.com",
-      "googleClientIdAndroid": "742496123289-jbuqv86ac1isbh31817gma3nauk4vpnj.apps.googleusercontent.com"
+      "googleClientIdWeb": "891795508101-q52sorsved9ra3dg83ujesge9g5390f1.apps.googleusercontent.com"
     }
   }
 }

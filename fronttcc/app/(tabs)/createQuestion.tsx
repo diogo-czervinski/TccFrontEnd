@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#047857', // Verde principal
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 16, // Mais arredondado
+    borderRadius: 16, 
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 4 },
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   publishButtonDisabled: {
-    backgroundColor: '#065F46', // Tom mais escuro
+    backgroundColor: '#065F46', 
     opacity: 0.8,
   },
   publishButtonText: {

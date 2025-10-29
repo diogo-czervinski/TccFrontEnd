@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TextInput, TouchableOpacity,
   Alert, KeyboardAvoidingView, Platform, ScrollView, Image, ActivityIndicator,
-  Modal, Dimensions, StatusBar, // Adicionado StatusBar
-  Pressable // Adicionado Pressable
+  Modal, Dimensions, StatusBar, Pressable
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -24,7 +23,6 @@ export default function CreateAdScreen() {
   const [mapModalVisible, setMapModalVisible] = useState(false);
   const router = useRouter();
 
-  // --- Seleção de imagens ---
   const handleSelectImages = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return Alert.alert('Permissão negada', 'Precisamos da galeria.');
@@ -67,7 +65,26 @@ export default function CreateAdScreen() {
     } catch (err) { console.log(err); }
   };
 
-  // --- Publicar (com correção do Android) ---
+  // --- Função para gerar nome e mimetype corrigidos ---
+  function getFileName(img: any, i: number) {
+    if (img.fileName) return img.fileName;
+    // Tenta extrair extensão do URI, senão usa jpg
+    let ext = 'jpg';
+    const match = /\.(jpg|jpeg|png|webp)$/i.exec(img.uri);
+    if (match) ext = match[1].toLowerCase();
+    return `image_${Date.now()}_${i}.${ext}`;
+  }
+  function getMimeType(img: any, fileName: string) {
+    let ext = fileName.split('.').pop()?.toLowerCase();
+    if (!img.type || img.type === 'image') {
+      if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+      if (ext === 'png') return 'image/png';
+      if (ext === 'webp') return 'image/webp';
+      return 'image/jpeg';
+    }
+    return img.type;
+  }
+
   const handlePublish = async () => {
     if (!title.trim() || !description.trim() || !location)
       return Alert.alert('Campos incompletos', 'Preencha todos os campos e capture a localização.');
@@ -80,30 +97,13 @@ export default function CreateAdScreen() {
       formData.append('localizacao', JSON.stringify(location));
       formData.append('address', address);
 
-      images.forEach(img => {
-        const fileName = img.fileName; 
-        if (!fileName) {
-          console.warn('Imagem sem fileName, pulando upload:', img.uri);
-          return; 
-        }
-        const uriParts = fileName.split('.');
-        const ext = (uriParts.pop() || '').toLowerCase(); 
-        let mimeType = img.type; 
-
-        if (mimeType === 'image' || !mimeType || ext === 'jpg') {
-          if (ext === 'jpg' || ext === 'jpeg') {
-            mimeType = 'image/jpeg'; 
-          } else if (ext === 'png') {
-            mimeType = 'image/png';
-          } else {
-            console.warn('Tipo de imagem desconhecido:', ext);
-            return; 
-          }
-        }
+      images.forEach((img, i) => {
+        const fileName = getFileName(img, i);
+        const mimeType = getMimeType(img, fileName);
         formData.append('images', {
           uri: img.uri,
           name: fileName,
-          type: mimeType, 
+          type: mimeType,
         } as any);
       });
 
@@ -153,10 +153,8 @@ export default function CreateAdScreen() {
       </html>
     `;
     return (
-      // ATUALIZADO: Modal em tela cheia (slide)
       <Modal visible={mapModalVisible} animationType="slide">
         <SafeAreaView style={styles.modalFullScreenContainer}>
-          {/* Cabeçalho do Modal */}
           <View style={styles.modalHeader}>
             <Pressable onPress={() => setMapModalVisible(false)} style={styles.modalHeaderButton}>
               <Text style={styles.modalCancelButtonText}>Cancelar</Text>
@@ -166,8 +164,6 @@ export default function CreateAdScreen() {
               <Text style={styles.modalSaveButtonText}>Confirmar</Text>
             </Pressable>
           </View>
-
-          {/* Conteúdo do Modal */}
           <WebView
             originWhitelist={['*']}
             source={{ html }}
@@ -184,23 +180,18 @@ export default function CreateAdScreen() {
   };
 
   return (
-    // ATUALIZADO: Fundo branco
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        {/* ATUALIZADO: Header com padding top */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Novo Anúncio</Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
             <Feather name="x" size={24} color="#374151" />
           </TouchableOpacity>
         </View>
-
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          {/* ATUALIZADO: Inputs com fundo cinza */}
           <TextInput style={styles.input} placeholder="Título" value={title} onChangeText={setTitle} />
           <TextInput style={[styles.input, styles.descriptionInput]} placeholder="Descrição" multiline value={description} onChangeText={setDescription} />
-
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Imagens</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
@@ -213,16 +204,13 @@ export default function CreateAdScreen() {
                 </View>
               ))}
             </ScrollView>
-            {/* ATUALIZADO: Botão tracejado (igual CreateQuestion) */}
             <TouchableOpacity style={styles.imagePickerButton} onPress={handleSelectImages}>
               <Feather name="image" size={24} color="#047857" />
               <Text style={styles.imagePickerButtonText}>Adicionar Imagens</Text>
             </TouchableOpacity>
           </View>
-
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Localização</Text>
-            {/* ATUALIZADO: Botão de localização com cores do tema */}
             <TouchableOpacity style={[styles.actionButton, location ? styles.actionButtonSuccess : {}]} onPress={handleGetLocation} disabled={isCapturingLocation}>
               {isCapturingLocation ? <ActivityIndicator color={location ? '#fff' : '#047857'} /> :
                 <>
@@ -234,16 +222,12 @@ export default function CreateAdScreen() {
             </TouchableOpacity>
             {address ? <Text style={styles.addressText}>{address}</Text> : null}
           </View>
-
         </ScrollView>
-
-        {/* ATUALIZADO: Footer e Botão Publicar com estilo do tema */}
         <View style={styles.footer}>
           <TouchableOpacity style={[styles.publishButton, !isFormValid && styles.publishButtonDisabled]} onPress={handlePublish} disabled={!isFormValid || isLoading}>
             {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.publishButtonText}>Publicar</Text>}
           </TouchableOpacity>
         </View>
-
         <FreeMapModal />
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -253,9 +237,7 @@ export default function CreateAdScreen() {
 const { width, height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
-  // ATUALIZADO: Fundo branco
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  // ATUALIZADO: Header com padding top
   header: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -267,7 +249,6 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight! + 10 : 16,
   },
   headerTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
-  // ATUALIZADO: Posição do botão de fechar
   closeButton: {
     position: 'absolute',
     right: 16,
@@ -276,22 +257,20 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 40 },
-  // ATUALIZADO: Inputs com fundo cinza-claro
   input: {
     fontSize: 16,
     padding: 14,
-    backgroundColor: '#F9FAFB', // Fundo cinza claro
+    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB', // Borda cinza
+    borderColor: '#E5E7EB',
     marginBottom: 16,
     color: '#111827'
   },
   descriptionInput: { height: 120, textAlignVertical: 'top' },
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 16, fontWeight: '500', color: '#374151', marginBottom: 12 },
-  
-  // ATUALIZADO: Botão de Localização
+
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -302,15 +281,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB'
   },
-  // ATUALIZADO: Cor de sucesso do tema
   actionButtonSuccess: {
     backgroundColor: '#047857',
     borderColor: '#047857'
   },
   actionButtonText: {
     fontSize: 16,
-    fontWeight: '600', // Mais forte
-    color: '#047857', // Verde do tema
+    fontWeight: '600',
+    color: '#047857',
     marginLeft: 8
   },
   addressText: {
@@ -320,7 +298,6 @@ const styles = StyleSheet.create({
     textAlign: 'center'
   },
 
-  // ADICIONADO: Estilo do botão tracejado (copiado de CreateQuestion)
   imagePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -328,7 +305,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#D1FAE5', // Borda verde clara
+    borderColor: '#D1FAE5',
     borderStyle: 'dashed',
     backgroundColor: '#F9FAFB',
   },
@@ -339,12 +316,10 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  // Estilos de preview de imagem (sem mudança)
   imagePreviewContainer: { marginRight: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 3, elevation: 3, borderRadius: 8 },
   imagePreview: { width: 90, height: 90, borderRadius: 8, backgroundColor: '#E5E7EB' },
   removeImageButton: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
-  
-  // ATUALIZADO: Footer e Botão de Publicar (copiado de CreateQuestion)
+
   footer: {
     padding: 16,
     paddingBottom: Platform.OS === 'ios' ? 24 : 16,
@@ -354,10 +329,10 @@ const styles = StyleSheet.create({
   },
   publishButton: {
     height: 56,
-    backgroundColor: '#047857', // Verde principal
+    backgroundColor: '#047857',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 16, // Mais arredondado
+    borderRadius: 16,
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 4 },
@@ -366,7 +341,7 @@ const styles = StyleSheet.create({
   },
   publishButtonDisabled: { opacity: 0.5 },
   publishButtonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
-  
+
   modalFullScreenContainer: {
     flex: 1,
     backgroundColor: '#F9FAFB',
