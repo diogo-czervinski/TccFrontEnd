@@ -38,7 +38,6 @@ export default function CreateAdScreen() {
 
   const handleRemoveImage = (index: number) => setImages(prev => prev.filter((_, i) => i !== index));
 
-  // --- Localização ---
   const handleGetLocation = async () => {
     setIsCapturingLocation(true);
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -65,15 +64,14 @@ export default function CreateAdScreen() {
     } catch (err) { console.log(err); }
   };
 
-  // --- Função para gerar nome e mimetype corrigidos ---
   function getFileName(img: any, i: number) {
     if (img.fileName) return img.fileName;
-    // Tenta extrair extensão do URI, senão usa jpg
     let ext = 'jpg';
     const match = /\.(jpg|jpeg|png|webp)$/i.exec(img.uri);
     if (match) ext = match[1].toLowerCase();
     return `image_${Date.now()}_${i}.${ext}`;
   }
+
   function getMimeType(img: any, fileName: string) {
     let ext = fileName.split('.').pop()?.toLowerCase();
     if (!img.type || img.type === 'image') {
@@ -119,7 +117,6 @@ export default function CreateAdScreen() {
 
   const isFormValid = title.trim().length >= 3 && description.trim().length >= 10 && location;
 
-  // --- Modal do mapa (ATUALIZADO PARA TELA CHEIA) ---
   const FreeMapModal = () => {
     if (!location) return null;
     const html = `
@@ -351,7 +348,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight! + 12 : 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     backgroundColor: '#fff',

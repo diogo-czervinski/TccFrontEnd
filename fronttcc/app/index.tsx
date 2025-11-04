@@ -29,7 +29,6 @@ export default function Login() {
   const colorScheme = useColorScheme();
   const isDarkMode = colorScheme === 'dark';
 
-  // ✅ Se já estiver logado, redireciona automaticamente
   useEffect(() => {
     if (!loading && signed) {
       router.replace('/(tabs)/home');
@@ -47,7 +46,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      await signIn({ email: email.trim(), password });
+      await signIn({ email: email.trim().toLowerCase(), password });
       router.replace('/(tabs)/home');
     } catch (error) {
       const errorMessage =

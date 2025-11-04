@@ -26,7 +26,7 @@ export default function RegisterScreen() {
   const [formattedPhone, setFormattedPhone] = useState('');
   const [selectedRole, setSelectedRole] = useState<'produtor' | 'tarefeiro' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [avatar, setAvatar] = useState<any>(null);
+  const [avatar, setAvatar] = useState<ImagePicker.ImagePickerAsset | null>(null); // --- TIPO CORRIGIDO ---
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDarkMode = colorScheme === 'dark';
@@ -83,6 +83,46 @@ export default function RegisterScreen() {
     }
   };
 
+  // --- FUNÇÕES DE AJUDA PARA UPLOAD (ANDROID) ---
+  
+  /**
+   * Tenta obter o nome real do arquivo; se falhar, gera um nome com a extensão correta.
+   */
+  const getAvatarFileName = (asset: ImagePicker.ImagePickerAsset) => {
+    // 1. Tenta usar o fileName original se existir e tiver uma extensão
+    if (asset.fileName && /\.(jpg|jpeg|png|webp)$/i.test(asset.fileName)) {
+      return asset.fileName;
+    }
+    
+    // 2. Se não, tenta extrair a extensão da URI
+    let ext = 'jpg'; // Padrão
+    const match = /\.(jpg|jpeg|png|webp)$/i.exec(asset.uri);
+    if (match) {
+      ext = match[1].toLowerCase();
+    }
+    
+    return `avatar_${Date.now()}.${ext}`;
+  };
+
+  /**
+   * Tenta obter o mimeType; se falhar, infere pela extensão do nome do arquivo.
+   */
+  const getAvatarMimeType = (asset: ImagePicker.ImagePickerAsset, fileName: string) => {
+    // 1. Tenta usar o mimeType original se for específico (ex: "image/png")
+    if (asset.mimeType && asset.mimeType !== 'image') {
+      return asset.mimeType;
+    }
+
+    // 2. Se não, infere pelo nome do arquivo (que já corrigimos)
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+    if (ext === 'png') return 'image/png';
+    if (ext === 'webp') return 'image/webp';
+    
+    // Padrão
+    return 'image/jpeg';
+  };
+
   // --- Registro ---
   const handleRegister = async () => {
     if (!fullName || !email || !password || !phone || !selectedRole) {
@@ -118,16 +158,26 @@ export default function RegisterScreen() {
         data.append('password', password);
         data.append('tel', phone);
         data.append('role', selectedRole.toUpperCase());
-        // Adiciona avatar
+        
+        // --- INÍCIO DA CORREÇÃO ---
+        
+        // 1. Gera o nome e o tipo corretos usando as funções de ajuda
+        const fileName = getAvatarFileName(avatar);
+        const mimeType = getAvatarMimeType(avatar, fileName);
+
+        // 2. Adiciona ao FormData com os valores corretos
         data.append('avatar', {
           uri: avatar.uri,
-          name: avatar.fileName || `avatar.jpg`,
-          type: avatar.type || 'image/jpeg',
+          name: fileName,
+          type: mimeType,
         });
+        
+        // --- FIM DA CORREÇÃO ---
+
       } else {
         data = {
           name: fullName.trim(),
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           password,
           tel: phone,
           role: selectedRole.toUpperCase(),
